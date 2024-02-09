@@ -4,6 +4,8 @@ use std::str::FromStr;
 
 use super::err;
 
+const PING_COMPENSATION: u32 = 200;
+
 #[derive(Debug, Default)]
 pub struct Game {
     pub id: u32,
@@ -71,8 +73,8 @@ impl Game {
     pub fn search_string(&self) -> String {
         format!(
             "go wtime {} btime {}\n",
-            self.time.0 * 1000,
-            self.time.1 * 1000
+            self.time.0 * 1000 - PING_COMPENSATION,
+            self.time.1 * 1000 - PING_COMPENSATION,
         )
     }
 
