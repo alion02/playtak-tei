@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use super::err;
 
-const PING_COMPENSATION: u32 = 200;
+const PING_COMPENSATION: u32 = 1500;
 
 #[derive(Debug, Default)]
 pub struct Game {
