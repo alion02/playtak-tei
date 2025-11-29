@@ -91,7 +91,7 @@ impl Game {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum GameMove {
     Place {
         x: u32,
@@ -106,14 +106,14 @@ pub enum GameMove {
     },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum PieceType {
     Flatstone,
     StandingStone,
     Capstone,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Direction {
     North,
     South,

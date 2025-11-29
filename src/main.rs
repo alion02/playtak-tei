@@ -18,6 +18,9 @@ use self::seek::{capstones_for_size, flatstones_for_size, Seek};
 mod game;
 mod option;
 mod seek;
+mod book;
+
+use self::book::Book;
 
 #[derive(Args, Clone, Debug)]
 struct Login {
@@ -70,6 +73,8 @@ struct AcceptCommand {
     login: Login,
     #[command(flatten)]
     accept: AcceptInfo,
+    #[arg(long)]
+    book: Option<String>,
     #[arg(required = true, num_args = 1.., trailing_var_arg = true)]
     engine_arguments: Vec<String>,
 }
@@ -80,6 +85,8 @@ struct SeekCommand {
     login: Login,
     #[command(flatten)]
     seek: Seek,
+    #[arg(long)]
+    book: Option<String>,
     #[arg(required = true, num_args = 1.., trailing_var_arg = true)]
     engine_arguments: Vec<String>,
 }
@@ -211,6 +218,19 @@ async fn main_inner(args: ArgCommand) -> io::Result<()> {
 
     info!("Logged in as {login_name}.");
 
+    let book_path = match &args {
+        ArgCommand::Accept(AcceptCommand { book, .. })
+        | ArgCommand::Seek(SeekCommand { book, .. }) => book.as_ref(),
+        _ => None,
+    };
+
+    let book = if let Some(path) = book_path {
+        info!("Loading book from {path}...");
+        Some(Book::load(path).map_err(|e| err!(format!("Could not load book: {}", e)))?)
+    } else {
+        None
+    };
+
     let mut seeks = Vec::new();
     loop {
         let input = read(&mut playtak_reader).await?;
@@ -252,6 +272,7 @@ async fn main_inner(args: ArgCommand) -> io::Result<()> {
                 game,
                 (engine_writer, engine_reader),
                 (playtak_writer, playtak_reader),
+                book.as_ref(),
             )
             .await;
         } else {
@@ -315,6 +336,7 @@ async fn main_inner(args: ArgCommand) -> io::Result<()> {
         game,
         (engine_writer, engine_reader),
         (playtak_writer, playtak_reader),
+        book.as_ref(),
     )
     .await
 }
@@ -405,6 +427,7 @@ async fn run_game(
     mut game: Game,
     (mut engine_writer, mut engine_reader): (impl Writer, impl Reader),
     (mut playtak_writer, mut playtak_reader): (impl Writer, impl Reader),
+    book: Option<&Book>,
 ) -> io::Result<()> {
     info!(
         id = game.id,
@@ -423,8 +446,13 @@ async fn run_game(
     write(&mut engine_writer, game.new_game_string()).await?;
 
     if our_turn {
-        write(&mut engine_writer, game.position_string()).await?;
-        write(&mut engine_writer, game.search_string()).await?;
+        if let Some(game_move) = book.and_then(|b| b.get_move(&game.moves, game.size)) {
+            write(&mut playtak_writer, game_move.to_playtak(game.id)).await?;
+            game.moves.push(game_move);
+        } else {
+            write(&mut engine_writer, game.position_string()).await?;
+            write(&mut engine_writer, game.search_string()).await?;
+        }
     }
 
     'game: loop {
@@ -465,8 +493,13 @@ async fn run_game(
 
                     game.moves.push(game_move);
 
-                    write(&mut engine_writer, game.position_string()).await?;
-                    write(&mut engine_writer, game.search_string()).await?;
+                    if let Some(game_move) = book.and_then(|b| b.get_move(&game.moves, game.size)) {
+                        write(&mut playtak_writer, game_move.to_playtak(game.id)).await?;
+                        game.moves.push(game_move);
+                    } else {
+                        write(&mut engine_writer, game.position_string()).await?;
+                        write(&mut engine_writer, game.search_string()).await?;
+                    }
                 } else if parts[1] == "Over" {
                     info!(result = parts[2], "Game finished.");
                     break 'game;
